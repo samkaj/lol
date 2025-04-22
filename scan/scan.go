@@ -183,11 +183,17 @@ func (scanner *Scanner) scanToken() {
 			for scanner.peek() != '\n' && !scanner.end() {
 				scanner.advance()
 			}
+		} else if scanner.match('*') {
+			scanner.cComment()
 		} else {
 			scanner.addToken(scanner.newToken(Slash, string(c)))
 		}
 	case '*':
-		scanner.addToken(scanner.newToken(Star, string(c)))
+		if scanner.match('/') {
+			scanner.err("Unexpected comment ending")
+		} else {
+			scanner.addToken(scanner.newToken(Star, string(c)))
+		}
 	case '+':
 		scanner.addToken(scanner.newToken(Plus, string(c)))
 	case '-':
@@ -223,6 +229,23 @@ func (scanner *Scanner) identifier() {
 	text := scanner.lexeme()
 	typ := keywordOrIdentifier(text)
 	scanner.addToken(scanner.newToken(typ, text))
+}
+
+func (scanner *Scanner) cComment() {
+	// the '/*' has already been consumed
+	for !scanner.end() {
+		if scanner.peek() == '*' && scanner.peekNext() == '/' {
+			scanner.advance()
+			scanner.advance()
+			return
+		}
+		if scanner.peek() == '\n' {
+			scanner.line++
+		}
+		scanner.advance()
+	}
+
+	scanner.err("unterminated c-style comment")
 }
 
 func (scanner *Scanner) numberLiteral() {
@@ -306,11 +329,11 @@ func (scanner *Scanner) peekNext() byte {
 }
 
 func (scanner *Scanner) advance() byte {
-	scanner.current++
-	if !scanner.end() {
-		return scanner.source[scanner.current-1]
+	if scanner.end() {
+		return 0
 	}
-	return 0
+	scanner.current++
+	return scanner.source[scanner.current-1]
 }
 
 func (scanner *Scanner) addToken(token Token) {
